@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SplitWise - Expense Splitter</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Optional Favicon -->
+    <link rel="icon" href="icon.png">
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-coins"></i> SplitWise</h1>
+                <p>Perfectly split expenses with friends</p>
+            </div>
+        </header>
+
+        <div id="status" style="padding:10px;font-size:14px;color:#555;">
+Loading...
+</div>
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Add Expense Section -->
+            <section class="expense-section">
+                <div class="card">
+                    <h2><i class="fas fa-plus"></i> Add Expense</h2>
+
+                    <form id="expenseForm" autocomplete="off">
+
+                        <div class="input-group">
+                            <label>Description</label>
+                            <input type="text" id="expenseDesc" placeholder="Dinner, groceries, etc." required>
+                        </div>
+
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>Amount (₹)</label>
+                                <input type="number" id="expenseAmount" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+
+                            <div class="input-group">
+                                <label>Paid By</label>
+                                <select id="paidBy" required>
+                                    <option value="">Choose...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Split Among</label>
+
+                            <div class="friend-selector" id="friendSelector">
+                                <!-- Dynamic friends added by JS -->
+                            </div>
+
+                            <small>Select friends (click to toggle)</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Add Expense
+                        </button>
+
+                    </form>
+                </div>
+            </section>
+
+            <!-- Friends Section -->
+            <section class="friends-section">
+                <div class="card">
+
+                    <div class="section-header">
+                        <h2><i class="fas fa-users"></i> Friends</h2>
+
+                        <button class="btn btn-secondary" id="addFriendBtn">
+                            <i class="fas fa-plus"></i> Add Friend
+                        </button>
+                    </div>
+
+                    <div id="friendsList" class="friends-grid"></div>
+
+                </div>
+            </section>
+
+            <!-- Summary Section -->
+            <section class="summary-section">
+
+                <div class="summary-grid">
+
+                    <div class="card summary-card">
+                        <h3><i class="fas fa-list"></i> Recent Expenses</h3>
+                        <div id="expensesList"></div>
+                    </div>
+
+                    <div class="card balance-card">
+                        <h3><i class="fas fa-scale-balanced"></i> Balances</h3>
+                        <div id="balanceList"></div>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- Add Friend Modal -->
+    <div id="friendModal" class="modal">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Add Friend</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+
+            <form id="friendForm">
+
+                <div class="input-group">
+                    <input type="text" id="friendName" placeholder="Friend's name" required>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary modal-close">
+                        Cancel
+                    </button>
+
+                    <button type="submit" class="btn btn-primary">
+                        Add Friend
+                    </button>
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="name">
+        Made by AJAY KRISHNAN R
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="app.js"></script>
+
+</body>
+</html>
