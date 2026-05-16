@@ -4,158 +4,263 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SplitWise - Expense Splitter</title>
-
-    <!-- CSS -->
     <link rel="stylesheet" href="style.css">
-
-    <!-- Font Awesome Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-
-    <!-- Optional Favicon -->
     <link rel="icon" href="icon.png">
-</head>
+    <style>
+        /* ── Room Screen ── */
+        #roomScreen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
 
+        .room-card {
+            background: white;
+            border-radius: 24px;
+            padding: 48px 40px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+
+        .room-card .logo {
+            font-size: 3rem;
+            margin-bottom: 8px;
+        }
+
+        .room-card h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+
+        .room-card p {
+            color: #666;
+            margin-bottom: 32px;
+            font-size: 0.95rem;
+        }
+
+        .room-card input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+        }
+
+        .room-card input:focus {
+            border-color: #667eea;
+        }
+
+        .room-card .btn-enter {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .room-card .btn-enter:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .room-hint {
+            margin-top: 24px;
+            padding: 16px;
+            background: #f8f8ff;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .room-hint strong {
+            color: #667eea;
+        }
+
+        /* ── Room Badge in Header ── */
+        .room-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .room-badge:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .room-badge i {
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
 <body>
 
-    <div class="app-container">
+    <!-- ── Room Code Screen ── -->
+    <div id="roomScreen">
+        <div class="room-card">
+            <div class="logo">💰</div>
+            <h1>SplitWise</h1>
+            <p>Enter a room code to access your group's expenses</p>
 
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1><i class="fas fa-coins"></i> SplitWise</h1>
-                <p>Perfectly split expenses with friends</p>
-            </div>
-        </header>
-
-        <div id="status" style="padding:10px;font-size:14px;color:#555;">
-Loading...
-</div>
-        <!-- Main Content -->
-        <main class="main-content">
-
-            <!-- Add Expense Section -->
-            <section class="expense-section">
-                <div class="card">
-                    <h2><i class="fas fa-plus"></i> Add Expense</h2>
-
-                    <form id="expenseForm" autocomplete="off">
-
-                        <div class="input-group">
-                            <label>Description</label>
-                            <input type="text" id="expenseDesc" placeholder="Dinner, groceries, etc." required>
-                        </div>
-
-                        <div class="input-row">
-                            <div class="input-group">
-                                <label>Amount (₹)</label>
-                                <input type="number" id="expenseAmount" step="0.01" min="0.01" placeholder="0.00" required>
-                            </div>
-
-                            <div class="input-group">
-                                <label>Paid By</label>
-                                <select id="paidBy" required>
-                                    <option value="">Choose...</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="input-group">
-                            <label>Split Among</label>
-
-                            <div class="friend-selector" id="friendSelector">
-                                <!-- Dynamic friends added by JS -->
-                            </div>
-
-                            <small>Select friends (click to toggle)</small>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Add Expense
-                        </button>
-
-                    </form>
-                </div>
-            </section>
-
-            <!-- Friends Section -->
-            <section class="friends-section">
-                <div class="card">
-
-                    <div class="section-header">
-                        <h2><i class="fas fa-users"></i> Friends</h2>
-
-                        <button class="btn btn-secondary" id="addFriendBtn">
-                            <i class="fas fa-plus"></i> Add Friend
-                        </button>
-                    </div>
-
-                    <div id="friendsList" class="friends-grid"></div>
-
-                </div>
-            </section>
-
-            <!-- Summary Section -->
-            <section class="summary-section">
-
-                <div class="summary-grid">
-
-                    <div class="card summary-card">
-                        <h3><i class="fas fa-list"></i> Recent Expenses</h3>
-                        <div id="expensesList"></div>
-                    </div>
-
-                    <div class="card balance-card">
-                        <h3><i class="fas fa-scale-balanced"></i> Balances</h3>
-                        <div id="balanceList"></div>
-                    </div>
-
-                </div>
-
-            </section>
-
-        </main>
-
-    </div>
-
-    <!-- Add Friend Modal -->
-    <div id="friendModal" class="modal">
-
-        <div class="modal-content">
-
-            <div class="modal-header">
-                <h3><i class="fas fa-user-plus"></i> Add Friend</h3>
-                <span class="modal-close">&times;</span>
-            </div>
-
-            <form id="friendForm">
-
-                <div class="input-group">
-                    <input type="text" id="friendName" placeholder="Friend's name" required>
-                </div>
-
-                <div class="modal-buttons">
-                    <button type="button" class="btn btn-secondary modal-close">
-                        Cancel
-                    </button>
-
-                    <button type="submit" class="btn btn-primary">
-                        Add Friend
-                    </button>
-                </div>
-
+            <form id="roomForm">
+                <input
+                    type="text"
+                    id="roomCodeInput"
+                    placeholder="e.g. TRIP2024"
+                    maxlength="20"
+                    required
+                    autocomplete="off"
+                />
+                <button type="submit" class="btn-enter">
+                    <i class="fas fa-arrow-right"></i> Enter Room
+                </button>
             </form>
 
+            <div class="room-hint">
+                <strong>New group?</strong> Just make up a code and share it with friends.<br>
+                <strong>Existing group?</strong> Enter the same code everyone uses.
+            </div>
         </div>
+    </div>
+
+    <!-- ── Main App (hidden until room code entered) ── -->
+    <div id="appContainer" style="display:none;">
+
+        <div class="app-container">
+
+            <!-- Header -->
+            <header class="header">
+                <div class="header-content">
+                    <h1><i class="fas fa-coins"></i> SplitWise</h1>
+                    <p>Perfectly split expenses with friends</p>
+                    <div class="room-badge" id="leaveRoomBtn" title="Leave room">
+                        <i class="fas fa-door-open"></i>
+                        Room: <strong id="currentRoomCode">—</strong>
+                        <i class="fas fa-times"></i>
+                    </div>
+                </div>
+            </header>
+
+            <div id="status" style="padding:10px;font-size:14px;color:#555;">Loading...</div>
+
+            <!-- Main Content -->
+            <main class="main-content">
+
+                <!-- Add Expense Section -->
+                <section class="expense-section">
+                    <div class="card">
+                        <h2><i class="fas fa-plus"></i> Add Expense</h2>
+                        <form id="expenseForm" autocomplete="off">
+                            <div class="input-group">
+                                <label>Description</label>
+                                <input type="text" id="expenseDesc" placeholder="Dinner, groceries, etc." required>
+                            </div>
+                            <div class="input-row">
+                                <div class="input-group">
+                                    <label>Amount (₹)</label>
+                                    <input type="number" id="expenseAmount" step="0.01" min="0.01" placeholder="0.00" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Paid By</label>
+                                    <select id="paidBy" required>
+                                        <option value="">Choose...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label>Split Among</label>
+                                <div class="friend-selector" id="friendSelector"></div>
+                                <small>Select friends (click to toggle)</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Add Expense
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Friends Section -->
+                <section class="friends-section">
+                    <div class="card">
+                        <div class="section-header">
+                            <h2><i class="fas fa-users"></i> Friends</h2>
+                            <button class="btn btn-secondary" id="addFriendBtn">
+                                <i class="fas fa-plus"></i> Add Friend
+                            </button>
+                        </div>
+                        <div id="friendsList" class="friends-grid"></div>
+                    </div>
+                </section>
+
+                <!-- Summary Section -->
+                <section class="summary-section">
+                    <div class="summary-grid">
+                        <div class="card summary-card">
+                            <h3><i class="fas fa-list"></i> Recent Expenses</h3>
+                            <div id="expensesList"></div>
+                        </div>
+                        <div class="card balance-card">
+                            <h3><i class="fas fa-scale-balanced"></i> Balances</h3>
+                            <div id="balanceList"></div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+
+        <!-- Add Friend Modal -->
+        <div id="friendModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-user-plus"></i> Add Friend</h3>
+                    <span class="modal-close">&times;</span>
+                </div>
+                <form id="friendForm">
+                    <div class="input-group">
+                        <input type="text" id="friendName" placeholder="Friend's name" required>
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Friend</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="name">Made by AJAY KRISHNAN R</footer>
 
     </div>
 
-    <!-- Footer -->
-    <footer class="name">
-        Made by AJAY KRISHNAN R
-    </footer>
-
-    <!-- JavaScript -->
     <script src="app.js"></script>
-
 </body>
 </html>
