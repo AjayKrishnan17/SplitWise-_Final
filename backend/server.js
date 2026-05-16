@@ -8,21 +8,21 @@ const { v4: uuidv4 } = require("uuid");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Basic middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Helpful mongoose setting
 mongoose.set("strictQuery", true);
 
-// Schemas
+// Schemas — both include roomCode
 const friendSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true, trim: true }
+    name: { type: String, required: true, trim: true },
+    roomCode: { type: String, required: true, trim: true }
   },
   { timestamps: true }
 );
+friendSchema.index({ name: 1, roomCode: 1 }, { unique: true });
 
 const expenseSchema = new mongoose.Schema(
   {
@@ -31,7 +31,8 @@ const expenseSchema = new mongoose.Schema(
     amount: { type: Number, required: true, min: 0 },
     paidBy: { type: String, required: true, trim: true },
     participants: { type: [String], default: [] },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+    roomCode: { type: String, required: true, trim: true }
   },
   { timestamps: true }
 );
@@ -44,22 +45,15 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK" });
 });
 
-// Get all app data
+// Get all app data for a room
 app.get("/api/data", async (req, res) => {
-  try {
-    const friends = await Friend.find().sort({ name: 1 });
-    const expenses = await Expense.find().sort({ date: -1 });
-    res.json({ friends, expenses });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+  const roomCode = String(req.query.roomCode || "").trim().toUpperCase();
+  if (!roomCode) return res.status(400).json({ error: "roomCode is required" });
 
-// Get friends
-app.get("/api/friends", async (req, res) => {
   try {
-    const friends = await Friend.find().sort({ name: 1 });
-    res.json(friends);
+    const friends = await Friend.find({ roomCode }).sort({ name: 1 });
+    const expenses = await Expense.find({ roomCode }).sort({ date: -1 });
+    res.json({ friends, expenses });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -67,20 +61,19 @@ app.get("/api/friends", async (req, res) => {
 
 // Add friend
 app.post("/api/friends", async (req, res) => {
+  const name = String(req.body.name || "").trim();
+  const roomCode = String(req.body.roomCode || "").trim().toUpperCase();
+
+  if (!name) return res.status(400).json({ error: "Name is required" });
+  if (!roomCode) return res.status(400).json({ error: "roomCode is required" });
+
   try {
-    const name = String(req.body.name || "").trim();
-
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
-    }
-
-    const friend = new Friend({ name });
+    const friend = new Friend({ name, roomCode });
     await friend.save();
-
     res.status(201).json(friend);
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(400).json({ error: "Friend already exists" });
+      return res.status(400).json({ error: "Friend already exists in this room" });
     }
     res.status(400).json({ error: err.message });
   }
@@ -88,18 +81,19 @@ app.post("/api/friends", async (req, res) => {
 
 // Delete friend
 app.delete("/api/friends/:name", async (req, res) => {
+  const name = decodeURIComponent(req.params.name).trim();
+  const roomCode = String(req.query.roomCode || "").trim().toUpperCase();
+
+  if (!roomCode) return res.status(400).json({ error: "roomCode is required" });
+
   try {
-    const name = decodeURIComponent(req.params.name).trim();
-
-    const result = await Friend.deleteOne({ name });
-
+    const result = await Friend.deleteOne({ name, roomCode });
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: "Friend not found" });
     }
 
-    // Remove that person from all expense participant lists
     await Expense.updateMany(
-      { participants: name },
+      { roomCode, participants: name },
       { $pull: { participants: name } }
     );
 
@@ -109,46 +103,24 @@ app.delete("/api/friends/:name", async (req, res) => {
   }
 });
 
-// Get expenses
-app.get("/api/expenses", async (req, res) => {
-  try {
-    const expenses = await Expense.find().sort({ date: -1 });
-    res.json(expenses);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Add expense
 app.post("/api/expenses", async (req, res) => {
+  const description = String(req.body.description || "").trim();
+  const amount = Number(req.body.amount);
+  const paidBy = String(req.body.paidBy || "").trim();
+  const roomCode = String(req.body.roomCode || "").trim().toUpperCase();
+  const participants = Array.isArray(req.body.participants)
+    ? [...new Set(req.body.participants.map((p) => String(p).trim()).filter(Boolean))]
+    : [];
+
+  if (!description) return res.status(400).json({ error: "Description is required" });
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "Amount must be a positive number" });
+  if (!paidBy) return res.status(400).json({ error: "paidBy is required" });
+  if (!roomCode) return res.status(400).json({ error: "roomCode is required" });
+  if (participants.length === 0) return res.status(400).json({ error: "At least one participant is required" });
+
   try {
-    const description = String(req.body.description || "").trim();
-    const amount = Number(req.body.amount);
-    const paidBy = String(req.body.paidBy || "").trim();
-    const participants = Array.isArray(req.body.participants)
-      ? [...new Set(req.body.participants.map((p) => String(p).trim()).filter(Boolean))]
-      : [];
-
-    if (!description) {
-      return res.status(400).json({ error: "Description is required" });
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ error: "Amount must be a positive number" });
-    }
-    if (!paidBy) {
-      return res.status(400).json({ error: "paidBy is required" });
-    }
-    if (participants.length === 0) {
-      return res.status(400).json({ error: "At least one participant is required" });
-    }
-
-    const expense = new Expense({
-      description,
-      amount,
-      paidBy,
-      participants
-    });
-
+    const expense = new Expense({ description, amount, paidBy, participants, roomCode });
     await expense.save();
     res.status(201).json(expense);
   } catch (err) {
@@ -167,7 +139,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-// Start server
 async function startServer() {
   try {
     console.log("Connecting to MongoDB...");
