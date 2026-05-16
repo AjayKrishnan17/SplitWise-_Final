@@ -117,7 +117,7 @@ class SplitWiseApp {
 
   async loadData() {
     try {
-      const data = await this.get(`/data?`);
+      const data = await this.get(`/data?x=1`);
       this.friends  = (data.friends  || []).map(f => typeof f === "string" ? f : f.name).filter(Boolean);
       this.expenses = (data.expenses || []).map(ex => ({
         id:           ex.id || "",
@@ -160,7 +160,7 @@ class SplitWiseApp {
   async deleteFriend(name) {
     if (!confirm(`Remove ${name}?`)) return;
     try {
-      await this.del(`/friends/${encodeURIComponent(name)}?`);
+      await this.del(`/friends/${encodeURIComponent(name)}?x=1`);
       await this.loadData();
       this.render();
     } catch (err) {
