@@ -2,7 +2,7 @@ class SplitWiseApp {
     constructor() {
         this.friends = [];
         this.expenses = [];
-        this.API_BASE = "http://localhost:3000/api";
+        this.API_BASE = "https://splitwise-final-tcjj.onrender.com/api";
         this.init();
     }
 
