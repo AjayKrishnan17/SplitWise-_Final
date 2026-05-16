@@ -1,4 +1,4 @@
-const API_BASE = "https://splitwise-final-tcjj.onrender.com/api"; // ← your Render URL
+const API_BASE = "https://splitwise-final-tcjj.onrender.com/api";
 
 class SplitWiseApp {
   constructor() {
