@@ -1,378 +1,331 @@
+const API_BASE = "https://splitwise-final-tcjj.onrender.com/api"; // ← your Render URL
+
 class SplitWiseApp {
-    constructor() {
-        this.friends = [];
-        this.expenses = [];
-        this.API_BASE = "https://splitwise-final-tcjj.onrender.com/api"; // 🔁 Change this to your Render URL
-        this.roomCode = null;
-        this.init();
+  constructor() {
+    this.friends  = [];
+    this.expenses = [];
+    this.roomCode = null;
+  }
+
+  // ── Boot ────────────────────────────────────────────────────────────────────
+
+  start() {
+    const form = document.getElementById("roomForm");
+    if (form) form.addEventListener("submit", e => this.enterRoom(e));
+  }
+
+  async enterRoom(e) {
+    e.preventDefault();
+    const input = document.getElementById("roomCodeInput");
+    const code  = input.value.trim().toUpperCase();
+
+    if (!code || code.length < 2) {
+      alert("Please enter a valid room code!");
+      return;
     }
 
-    async init() {
-        this.showRoomScreen();
+    this.roomCode = code;
+
+    // switch screens
+    document.getElementById("roomScreen").style.display    = "none";
+    document.getElementById("appContainer").style.display  = "block";
+    document.getElementById("currentRoomCode").textContent = code;
+
+    this.bindEvents();
+    this.setStatus("🔄 Loading...");
+    await this.loadData();
+    this.setStatus(`✅ Room: ${this.roomCode}`);
+    this.render();
+  }
+
+  // ── Events ──────────────────────────────────────────────────────────────────
+
+  bindEvents() {
+    document.getElementById("expenseForm")
+      ?.addEventListener("submit", e => this.addExpense(e));
+
+    document.getElementById("friendForm")
+      ?.addEventListener("submit", e => this.addFriend(e));
+
+    document.getElementById("addFriendBtn")
+      ?.addEventListener("click", () => this.showModal());
+
+    document.getElementById("leaveRoomBtn")
+      ?.addEventListener("click", () => this.leaveRoom());
+
+    document.querySelectorAll(".modal-close").forEach(btn =>
+      btn.addEventListener("click", () => this.hideModal())
+    );
+
+    const modal = document.getElementById("friendModal");
+    if (modal) {
+      modal.addEventListener("click", e => {
+        if (e.target === modal) this.hideModal();
+      });
     }
 
-    // ─── Room Code Screen ───────────────────────────────────────────────
+    document.getElementById("friendsList")
+      ?.addEventListener("click", e => {
+        const del = e.target.closest("[data-action='delete-friend']");
+        if (del) { this.deleteFriend(del.dataset.name); return; }
 
-    showRoomScreen() {
-        const roomScreen = document.getElementById("roomScreen");
-        const appContainer = document.getElementById("appContainer");
-        if (roomScreen) roomScreen.style.display = "flex";
-        if (appContainer) appContainer.style.display = "none";
+        const item = e.target.closest(".friend-item");
+        if (item?.dataset.name) this.toggleSelect(item.dataset.name);
+      });
+  }
 
-        const roomForm = document.getElementById("roomForm");
-        if (roomForm) {
-            roomForm.addEventListener("submit", (e) => this.handleRoomEntry(e));
-        }
+  leaveRoom() {
+    this.roomCode = null;
+    this.friends  = [];
+    this.expenses = [];
+    document.getElementById("appContainer").style.display = "none";
+    document.getElementById("roomScreen").style.display   = "flex";
+    document.getElementById("roomCodeInput").value        = "";
+  }
+
+  // ── API helpers ─────────────────────────────────────────────────────────────
+
+  async get(path) {
+    const res = await fetch(`${API_BASE}${path}&roomCode=${this.roomCode}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  async post(path, body) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ ...body, roomCode: this.roomCode })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Request failed");
+    }
+    return res.json();
+  }
+
+  async del(path) {
+    const res = await fetch(`${API_BASE}${path}&roomCode=${this.roomCode}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Request failed");
+    }
+    return res.json();
+  }
+
+  // ── Data ────────────────────────────────────────────────────────────────────
+
+  async loadData() {
+    try {
+      const data = await this.get(`/data?`);
+      this.friends  = (data.friends  || []).map(f => typeof f === "string" ? f : f.name).filter(Boolean);
+      this.expenses = (data.expenses || []).map(ex => ({
+        id:           ex.id || "",
+        description:  ex.description || "",
+        amount:       Number(ex.amount) || 0,
+        paidBy:       ex.paidBy || "",
+        participants: Array.isArray(ex.participants) ? ex.participants : [],
+        date:         ex.date || new Date().toISOString()
+      }));
+    } catch (err) {
+      console.error("loadData error:", err.message);
+      this.friends  = [];
+      this.expenses = [];
+    }
+  }
+
+  // ── Friends ─────────────────────────────────────────────────────────────────
+
+  async addFriend(e) {
+    e.preventDefault();
+    const input = document.getElementById("friendName");
+    const name  = input.value.trim();
+
+    if (!name) { alert("Enter a name!"); return; }
+    if (this.friends.some(f => f.toLowerCase() === name.toLowerCase())) {
+      alert("Friend already exists in this room!"); return;
     }
 
-    handleRoomEntry(e) {
-        e.preventDefault();
-        const input = document.getElementById("roomCodeInput");
-        const code = input.value.trim().toUpperCase();
+    try {
+      await this.post("/friends", { name });
+      this.hideModal();
+      document.getElementById("friendForm").reset();
+      await this.loadData();
+      this.render();
+    } catch (err) {
+      alert("Failed to add friend: " + err.message);
+    }
+  }
 
-        if (!code || code.length < 3) {
-            alert("Please enter a valid room code (at least 3 characters)!");
-            return;
-        }
+  async deleteFriend(name) {
+    if (!confirm(`Remove ${name}?`)) return;
+    try {
+      await this.del(`/friends/${encodeURIComponent(name)}?`);
+      await this.loadData();
+      this.render();
+    } catch (err) {
+      alert("Failed to delete: " + err.message);
+    }
+  }
 
-        this.roomCode = code;
-        document.getElementById("roomScreen").style.display = "none";
-        document.getElementById("appContainer").style.display = "block";
-        document.getElementById("currentRoomCode").textContent = code;
+  toggleSelect(name) {
+    const el = [...document.querySelectorAll(".friend-item")]
+      .find(i => i.dataset.name === name);
+    el?.classList.toggle("selected");
+  }
 
-        this.updateStatus("🔄 Loading room data...");
-        this.loadData().then(() => {
-            this.bindEvents();
-            this.updateStatus(`✅ Room: ${this.roomCode} — ${this.friends.length} friends`);
-            this.render();
-        });
+  selectedFriends() {
+    return [...document.querySelectorAll(".friend-item.selected")]
+      .map(i => i.dataset.name).filter(Boolean);
+  }
+
+  // ── Expenses ────────────────────────────────────────────────────────────────
+
+  async addExpense(e) {
+    e.preventDefault();
+    const desc     = document.getElementById("expenseDesc").value.trim();
+    const amount   = parseFloat(document.getElementById("expenseAmount").value);
+    const paidBy   = document.getElementById("paidBy").value;
+    const selected = this.selectedFriends();
+
+    if (!desc || !Number.isFinite(amount) || amount <= 0 || !paidBy || selected.length === 0) {
+      alert("Please fill all fields and select at least one friend!"); return;
     }
 
-    // ─── Events ─────────────────────────────────────────────────────────
-
-    bindEvents() {
-        const expenseForm = document.getElementById("expenseForm");
-        const friendForm = document.getElementById("friendForm");
-        const addFriendBtn = document.getElementById("addFriendBtn");
-        const friendModal = document.getElementById("friendModal");
-        const friendsList = document.getElementById("friendsList");
-        const leaveRoomBtn = document.getElementById("leaveRoomBtn");
-
-        if (expenseForm) expenseForm.addEventListener("submit", (e) => this.addExpense(e));
-        if (friendForm) friendForm.addEventListener("submit", (e) => this.addFriend(e));
-        if (addFriendBtn) addFriendBtn.addEventListener("click", () => this.showModal());
-
-        document.querySelectorAll(".modal-close").forEach((btn) => {
-            btn.addEventListener("click", () => this.hideModal());
-        });
-
-        if (friendModal) {
-            friendModal.addEventListener("click", (e) => {
-                if (e.target === e.currentTarget) this.hideModal();
-            });
-        }
-
-        if (friendsList) {
-            friendsList.addEventListener("click", (e) => {
-                const deleteBtn = e.target.closest("[data-action='delete-friend']");
-                if (deleteBtn) {
-                    this.deleteFriend(deleteBtn.dataset.name);
-                    return;
-                }
-                const item = e.target.closest(".friend-item");
-                if (item && item.dataset.name) {
-                    this.toggleFriendSelection(item.dataset.name);
-                }
-            });
-        }
-
-        if (leaveRoomBtn) {
-            leaveRoomBtn.addEventListener("click", () => {
-                this.roomCode = null;
-                this.friends = [];
-                this.expenses = [];
-                this.showRoomScreen();
-            });
-        }
+    try {
+      await this.post("/expenses", { description: desc, amount, paidBy, participants: selected });
+      document.getElementById("expenseForm").reset();
+      document.querySelectorAll(".friend-item.selected")
+        .forEach(i => i.classList.remove("selected"));
+      await this.loadData();
+      this.render();
+    } catch (err) {
+      alert("Failed to add expense: " + err.message);
     }
+  }
 
-    // ─── API ─────────────────────────────────────────────────────────────
+  // ── Balances ────────────────────────────────────────────────────────────────
 
-    async apiRequest(endpoint, options = {}) {
-        const separator = endpoint.includes("?") ? "&" : "?";
-        const url = `${this.API_BASE}${endpoint}${options.method === "GET" || !options.method ? `${separator}roomCode=${this.roomCode}` : ""}`;
+  calcBalances() {
+    const b = {};
+    this.friends.forEach(f => b[f] = 0);
+    this.expenses.forEach(ex => {
+      const parts = (ex.participants || []).filter(Boolean);
+      if (!parts.length || !ex.paidBy) return;
+      if (!(ex.paidBy in b)) b[ex.paidBy] = 0;
+      parts.forEach(p => { if (!(p in b)) b[p] = 0; });
+      const share = ex.amount / parts.length;
+      b[ex.paidBy] += ex.amount;
+      parts.forEach(p => b[p] -= share);
+    });
+    return b;
+  }
 
-        const response = await fetch(url, {
-            headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-            ...options
-        });
+  // ── Render ───────────────────────────────────────────────────────────────────
 
-        if (!response.ok) {
-            let error = {};
-            try { error = await response.json(); } catch (_) {}
-            throw new Error(error.error || `HTTP ${response.status}`);
-        }
+  render() {
+    this.renderFriends();
+    this.renderPaidBy();
+    this.renderExpenses();
+    this.renderBalances();
+  }
 
-        return await response.json();
+  esc(v) {
+    return String(v)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+
+  money(n) {
+    return new Intl.NumberFormat("en-IN", { style:"currency", currency:"INR" }).format(n || 0);
+  }
+
+  renderFriends() {
+    const c = document.getElementById("friendsList");
+    if (!c) return;
+    if (!this.friends.length) {
+      c.innerHTML = `<div style="text-align:center;padding:40px;color:#666;">
+        <i class="fas fa-users" style="font-size:3rem;opacity:0.4;display:block;margin-bottom:12px;"></i>
+        No friends yet. Add some!
+      </div>`; return;
     }
+    c.innerHTML = this.friends.map(f => `
+      <div class="friend-item" data-name="${this.esc(f)}">
+        <span>${this.esc(f)}</span>
+        <button type="button" class="delete-btn" data-action="delete-friend" data-name="${this.esc(f)}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>`).join("");
+  }
 
-    normalizeFriends(input = []) {
-        const names = input.map((f) => {
-            if (typeof f === "string") return f.trim();
-            if (f && typeof f === "object") return String(f.name || "").trim();
-            return "";
-        }).filter(Boolean);
-        return [...new Set(names)];
+  renderPaidBy() {
+    const s = document.getElementById("paidBy");
+    if (!s) return;
+    s.innerHTML = '<option value="">Choose who paid...</option>' +
+      this.friends.map(f => `<option value="${this.esc(f)}">${this.esc(f)}</option>`).join("");
+  }
+
+  renderExpenses() {
+    const c = document.getElementById("expensesList");
+    if (!c) return;
+    const recent = this.expenses.slice(0, 5);
+    if (!recent.length) {
+      c.innerHTML = `<div style="text-align:center;padding:40px;color:#666;">
+        <i class="fas fa-receipt" style="font-size:3rem;opacity:0.4;display:block;margin-bottom:12px;"></i>
+        No expenses yet!
+      </div>`; return;
     }
+    c.innerHTML = recent.map(ex => `
+      <div class="expense-item">
+        <div class="expense-info">
+          <div class="expense-desc">${this.esc(ex.description)}</div>
+          <div class="expense-meta">
+            Paid by <strong>${this.esc(ex.paidBy)}</strong>
+            · ${ex.participants.length} people
+            · ${ex.date ? new Date(ex.date).toLocaleDateString() : ""}
+          </div>
+        </div>
+        <div class="expense-amount">${this.money(ex.amount)}</div>
+      </div>`).join("");
+  }
 
-    normalizeExpenses(input = []) {
-        return input.map((expense) => ({
-            id: expense?.id || "",
-            description: String(expense?.description || ""),
-            amount: Number(expense?.amount) || 0,
-            paidBy: String(expense?.paidBy || ""),
-            participants: Array.isArray(expense?.participants)
-                ? [...new Set(expense.participants.map((p) => String(p).trim()).filter(Boolean))]
-                : [],
-            date: expense?.date || new Date().toISOString()
-        }));
+  renderBalances() {
+    const c = document.getElementById("balanceList");
+    if (!c) return;
+    const entries = Object.entries(this.calcBalances());
+    if (!entries.length) {
+      c.innerHTML = `<div style="text-align:center;padding:24px;color:#666;">No balances yet.</div>`;
+      return;
     }
+    c.innerHTML = entries.map(([name, bal]) => {
+      const pos = bal >= 0;
+      return `<div class="balance-item ${pos ? "balance-positive" : "balance-negative"}">
+        <span>${this.esc(name)}</span>
+        <strong>${pos ? "+" : ""}${this.money(bal)}</strong>
+      </div>`;
+    }).join("");
+  }
 
-    async loadData() {
-        try {
-            const data = await this.apiRequest(`/data?roomCode=${this.roomCode}`);
-            this.friends = this.normalizeFriends(data.friends || []);
-            this.expenses = this.normalizeExpenses(data.expenses || []);
-        } catch (error) {
-            console.error("Failed to load data:", error);
-            this.friends = [];
-            this.expenses = [];
-        }
-    }
+  // ── Modal ────────────────────────────────────────────────────────────────────
 
-    updateStatus(message) {
-        const statusEl = document.getElementById("status");
-        if (statusEl) statusEl.textContent = message;
-    }
+  showModal() {
+    document.getElementById("friendModal").style.display = "flex";
+    document.getElementById("friendName").focus();
+  }
 
-    escapeHTML(value) {
-        return String(value)
-            .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-    }
+  hideModal() {
+    document.getElementById("friendModal").style.display = "none";
+    document.getElementById("friendForm").reset();
+  }
 
-    formatMoney(amount) {
-        return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount || 0);
-    }
-
-    // ─── Friends ─────────────────────────────────────────────────────────
-
-    async addFriend(e) {
-        e.preventDefault();
-        const input = document.getElementById("friendName");
-        const name = input.value.trim();
-
-        const alreadyExists = this.friends.some((f) => f.toLowerCase() === name.toLowerCase());
-        if (!name || alreadyExists) {
-            alert("Please enter a unique name!");
-            return;
-        }
-
-        try {
-            await fetch(`${this.API_BASE}/friends`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, roomCode: this.roomCode })
-            });
-
-            document.getElementById("friendForm").reset();
-            this.hideModal();
-            await this.loadData();
-            this.render();
-        } catch (error) {
-            alert("Failed to add friend: " + error.message);
-        }
-    }
-
-    async deleteFriend(name) {
-        if (!name || !confirm(`Remove ${name}?`)) return;
-
-        try {
-            await fetch(`${this.API_BASE}/friends/${encodeURIComponent(name)}?roomCode=${this.roomCode}`, {
-                method: "DELETE"
-            });
-            await this.loadData();
-            this.render();
-        } catch (error) {
-            alert("Failed to remove friend: " + error.message);
-        }
-    }
-
-    toggleFriendSelection(friendName) {
-        const friendItem = Array.from(document.querySelectorAll(".friend-item"))
-            .find((item) => item.dataset.name === friendName);
-        if (friendItem) friendItem.classList.toggle("selected");
-    }
-
-    getSelectedFriends() {
-        return Array.from(document.querySelectorAll(".friend-item.selected"))
-            .map((item) => item.dataset.name).filter(Boolean);
-    }
-
-    // ─── Expenses ─────────────────────────────────────────────────────────
-
-    async addExpense(e) {
-        e.preventDefault();
-
-        const desc = document.getElementById("expenseDesc").value.trim();
-        const amount = parseFloat(document.getElementById("expenseAmount").value);
-        const paidBy = document.getElementById("paidBy").value;
-        const selectedFriends = this.getSelectedFriends();
-
-        if (!desc || !Number.isFinite(amount) || amount <= 0 || !paidBy || selectedFriends.length === 0) {
-            alert("Please fill all fields correctly and select at least one friend!");
-            return;
-        }
-
-        try {
-            await fetch(`${this.API_BASE}/expenses`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ description: desc, amount, paidBy, participants: selectedFriends, roomCode: this.roomCode })
-            });
-
-            document.getElementById("expenseForm").reset();
-            document.querySelectorAll(".friend-item.selected").forEach((item) => item.classList.remove("selected"));
-            await this.loadData();
-            this.render();
-        } catch (error) {
-            alert("Failed to add expense: " + error.message);
-        }
-    }
-
-    // ─── Balances ─────────────────────────────────────────────────────────
-
-    calculateBalances() {
-        const balances = {};
-        this.friends.forEach((f) => { balances[f] = 0; });
-
-        this.expenses.forEach((expense) => {
-            const participants = Array.isArray(expense.participants) ? expense.participants.filter(Boolean) : [];
-            if (!participants.length || !expense.paidBy) return;
-
-            if (!(expense.paidBy in balances)) balances[expense.paidBy] = 0;
-            participants.forEach((p) => { if (!(p in balances)) balances[p] = 0; });
-
-            const share = expense.amount / participants.length;
-            balances[expense.paidBy] += expense.amount;
-            participants.forEach((p) => { balances[p] -= share; });
-        });
-
-        return balances;
-    }
-
-    // ─── Render ──────────────────────────────────────────────────────────
-
-    render() {
-        this.renderFriends();
-        this.renderPaidBySelect();
-        this.renderExpenses();
-        this.renderBalances();
-    }
-
-    renderFriends() {
-        const container = document.getElementById("friendsList");
-        if (!container) return;
-
-        if (this.friends.length === 0) {
-            container.innerHTML = `<div style="text-align:center;padding:40px;color:#666;"><i class="fas fa-users" style="font-size:3rem;margin-bottom:16px;opacity:0.5;"></i><p>No friends yet. Add some!</p></div>`;
-            return;
-        }
-
-        container.innerHTML = this.friends.map((friend) => `
-            <div class="friend-item" data-name="${this.escapeHTML(friend)}">
-                <span>${this.escapeHTML(friend)}</span>
-                <button type="button" class="delete-btn" data-action="delete-friend" data-name="${this.escapeHTML(friend)}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `).join("");
-    }
-
-    renderPaidBySelect() {
-        const select = document.getElementById("paidBy");
-        if (!select) return;
-        select.innerHTML = '<option value="">Choose who paid...</option>';
-        this.friends.forEach((friend) => {
-            const option = document.createElement("option");
-            option.value = friend;
-            option.textContent = friend;
-            select.appendChild(option);
-        });
-    }
-
-    renderExpenses() {
-        const container = document.getElementById("expensesList");
-        if (!container) return;
-
-        const recent = this.expenses.slice(0, 5);
-        if (recent.length === 0) {
-            container.innerHTML = `<div style="text-align:center;padding:40px;color:#666;"><i class="fas fa-receipt" style="font-size:3rem;margin-bottom:16px;opacity:0.5;"></i><p>No expenses yet!</p></div>`;
-            return;
-        }
-
-        container.innerHTML = recent.map((expense) => {
-            const date = expense.date ? new Date(expense.date).toLocaleDateString() : "";
-            return `
-                <div class="expense-item">
-                    <div class="expense-info">
-                        <div class="expense-desc">${this.escapeHTML(expense.description)}</div>
-                        <div class="expense-meta">Paid by <strong>${this.escapeHTML(expense.paidBy)}</strong> • ${expense.participants?.length || 0} people • ${date}</div>
-                    </div>
-                    <div class="expense-amount">${this.formatMoney(expense.amount)}</div>
-                </div>
-            `;
-        }).join("");
-    }
-
-    renderBalances() {
-        const container = document.getElementById("balanceList");
-        if (!container) return;
-
-        const balances = this.calculateBalances();
-        const entries = Object.entries(balances);
-
-        if (entries.length === 0) {
-            container.innerHTML = `<div style="text-align:center;padding:24px;color:#666;">No balances yet.</div>`;
-            return;
-        }
-
-        container.innerHTML = entries.map(([name, balance]) => {
-            const isPositive = balance > 0;
-            return `
-                <div class="balance-item ${isPositive ? "balance-positive" : "balance-negative"}">
-                    <span>${this.escapeHTML(name)}</span>
-                    <strong>${isPositive ? "+" : "-"}${this.formatMoney(Math.abs(balance))}</strong>
-                </div>
-            `;
-        }).join("");
-    }
-
-    showModal() {
-        const modal = document.getElementById("friendModal");
-        const input = document.getElementById("friendName");
-        if (modal) modal.style.display = "flex";
-        if (input) input.focus();
-    }
-
-    hideModal() {
-        const modal = document.getElementById("friendModal");
-        const form = document.getElementById("friendForm");
-        if (modal) modal.style.display = "none";
-        if (form) form.reset();
-    }
+  setStatus(msg) {
+    const el = document.getElementById("status");
+    if (el) el.textContent = msg;
+  }
 }
 
+// Boot
 document.addEventListener("DOMContentLoaded", () => {
-    window.app = new SplitWiseApp();
+  window.app = new SplitWiseApp();
+  window.app.start();
 });
