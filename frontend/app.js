@@ -7,8 +7,6 @@ class SplitWiseApp {
     this.roomCode = null;
   }
 
-  // ── Boot ────────────────────────────────────────────────────────────────────
-
   start() {
     const form = document.getElementById("roomForm");
     if (form) form.addEventListener("submit", e => this.enterRoom(e));
@@ -26,7 +24,6 @@ class SplitWiseApp {
 
     this.roomCode = code;
 
-    // switch screens
     document.getElementById("roomScreen").style.display    = "none";
     document.getElementById("appContainer").style.display  = "block";
     document.getElementById("currentRoomCode").textContent = code;
@@ -37,8 +34,6 @@ class SplitWiseApp {
     this.setStatus(`✅ Room: ${this.roomCode}`);
     this.render();
   }
-
-  // ── Events ──────────────────────────────────────────────────────────────────
 
   bindEvents() {
     document.getElementById("expenseForm")
@@ -86,7 +81,7 @@ class SplitWiseApp {
   // ── API helpers ─────────────────────────────────────────────────────────────
 
   async get(path) {
-    const res = await fetch(`${API_BASE}${path}&roomCode=${this.roomCode}`);
+    const res = await fetch(`${API_BASE}${path}?roomCode=${this.roomCode}`);
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   }
@@ -105,7 +100,7 @@ class SplitWiseApp {
   }
 
   async del(path) {
-    const res = await fetch(`${API_BASE}${path}&roomCode=${this.roomCode}`, { method: "DELETE" });
+    const res = await fetch(`${API_BASE}${path}?roomCode=${this.roomCode}`, { method: "DELETE" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Request failed");
@@ -117,7 +112,7 @@ class SplitWiseApp {
 
   async loadData() {
     try {
-      const data = await this.get(`/data?x=1`);
+      const data = await this.get("/data");
       this.friends  = (data.friends  || []).map(f => typeof f === "string" ? f : f.name).filter(Boolean);
       this.expenses = (data.expenses || []).map(ex => ({
         id:           ex.id || "",
@@ -160,7 +155,7 @@ class SplitWiseApp {
   async deleteFriend(name) {
     if (!confirm(`Remove ${name}?`)) return;
     try {
-      await this.del(`/friends/${encodeURIComponent(name)}?x=1`);
+      await this.del(`/friends/${encodeURIComponent(name)}`);
       await this.loadData();
       this.render();
     } catch (err) {
@@ -306,8 +301,6 @@ class SplitWiseApp {
     }).join("");
   }
 
-  // ── Modal ────────────────────────────────────────────────────────────────────
-
   showModal() {
     document.getElementById("friendModal").style.display = "flex";
     document.getElementById("friendName").focus();
@@ -324,7 +317,6 @@ class SplitWiseApp {
   }
 }
 
-// Boot
 document.addEventListener("DOMContentLoaded", () => {
   window.app = new SplitWiseApp();
   window.app.start();
